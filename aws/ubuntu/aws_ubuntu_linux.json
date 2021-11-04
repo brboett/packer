@@ -1,0 +1,103 @@
+{
+  "variables": {
+    "aws_access_key": "{{env `AWS_ACCESS_KEY_ID`}}",
+    "aws_secret_key": "{{env `AWS_SECRET_ACCESS_KEY`}}",
+    "aws_job_name": "ami-ubuntu-focal",
+    "aws_region": "us-east-1",
+    "aws_ami_name": "ami-ubuntu-focal-{{timestamp}}",     
+    "aws_ami_owner": "099720109477",
+    "aws_remote_user": "ubuntu",
+    "aws_os_type": "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-*",     
+    "aws_instance_type": "t3a.small"
+  },
+
+  "builders": [
+    {
+      "name": "{{user `aws_job_name`}}",
+      "type": "amazon-ebs",
+      "ami_name": "{{user `aws_ami_name`}}",
+      "region": "{{user `aws_region`}}",
+      "instance_type": "{{user `aws_instance_type`}}",        
+      "ssh_username": "{{user `aws_remote_user`}}",    
+      "metadata_options": {
+        "http_endpoint": "enabled",
+        "http_tokens": "required",
+        "http_put_response_hop_limit": "1"
+      },
+      
+      "source_ami_filter": {
+        "most_recent": true,
+        "owners": ["{{user `aws_ami_owner`}}"],
+        "filters": {
+          "virtualization-type": "hvm",
+          "name": "{{user `aws_os_type`}}",
+          "architecture":"x86_64",
+          "root-device-type": "ebs"
+        }
+      },
+      
+      "security_group_filter": {
+        "filters": {
+            "tag:Class": "Packer"
+        }
+      },
+      
+      "subnet_filter": {
+        "filters": {
+          "tag:Class": "Build"
+        }
+      },
+      
+      "launch_block_device_mappings": [
+        {
+          "device_name": "/dev/sda1",
+          "volume_type": "gp2",
+          "volume_size": 20,
+          "delete_on_termination": true
+        }
+      ],
+      
+      "run_tags": {
+        "Name": "Packer - AMI Creation for Ubuntu",
+        "AMIVersion":"{{isotime `2006.01.02`}}",
+        "AMISource":"{{ .SourceAMIName }}"
+      },
+     
+      "snapshot_tags":{
+        "AMIVersion":"{{isotime `2006.01.02`}}",
+        "AMISource":"{{ .SourceAMIName }}"
+      },
+      
+      "tags":{
+        "AMIVersion":"{{isotime `2006.01.02`}}",
+        "AMISource":"{{ .SourceAMIName }}"
+      }
+    }
+  ],
+  
+  "provisioners": [
+      {
+        "type": "shell",
+        "max_retries": 3,
+        "inline": [
+          "echo 'Creating directories...'",
+          "sudo mkdir /opt/build",
+          "echo 'Applying permissions to directories...'",
+          "sudo chown ubuntu:ubuntu /opt/build",
+          "echo 'Installing updates...'",  
+          "sudo apt update && sudo apt upgrade -y"              
+        ]
+      },
+      {
+        "type": "shell",
+        "inline": [
+          "echo 'Copying files...'"
+        ]
+      },
+      {
+        "type": "file",
+        "source": "/home/bryan/Code/packer/aws/ubuntu/files/test.txt",
+        "destination": "/opt/build/"
+      }
+  ]
+}
